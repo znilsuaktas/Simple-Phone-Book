@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -9,26 +10,36 @@ public class PhoneBookUI extends JFrame {
     protected JTextField nameField, phoneField, searchField;
     protected JTable table;
     protected DefaultTableModel tableModel;
+    protected JComboBox<String> codeBox;
 
     public PhoneBookUI() {
         dao = new ContactDAO();
 
         setTitle("Phone Book");
-        setSize(650, 450);
+        setSize(700, 480);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-       
+        
         JPanel topPanel = new JPanel(new FlowLayout());
         topPanel.setBackground(new Color(230, 230, 250));
 
         JLabel nameLabel = new JLabel("Name:");
         nameLabel.setForeground(new Color(25, 25, 112));
+        nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
         nameField = new JTextField(10);
+        nameField.setHorizontalAlignment(JTextField.CENTER);
 
         JLabel phoneLabel = new JLabel("Phone:");
         phoneLabel.setForeground(new Color(25, 25, 112));
+        phoneLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+        List<String> codeList = dao.getCountryCodes();
+        codeBox = new JComboBox<>(codeList.toArray(new String[0]));
+
         phoneField = new JTextField(10);
+        phoneField.setHorizontalAlignment(JTextField.CENTER);
 
         JButton addBtn = new JButton("Add");
         addBtn.setBackground(new Color(60, 179, 113));
@@ -37,11 +48,12 @@ public class PhoneBookUI extends JFrame {
         topPanel.add(nameLabel);
         topPanel.add(nameField);
         topPanel.add(phoneLabel);
+        topPanel.add(codeBox);
         topPanel.add(phoneField);
         topPanel.add(addBtn);
         add(topPanel, BorderLayout.NORTH);
 
-       
+        
         tableModel = new DefaultTableModel(new Object[]{"ID", "Name", "Phone"}, 0);
         table = new JTable(tableModel);
         table.setBackground(Color.WHITE);
@@ -51,17 +63,32 @@ public class PhoneBookUI extends JFrame {
         table.getTableHeader().setBackground(new Color(100, 149, 237));
         table.getTableHeader().setForeground(Color.WHITE);
         table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+
+        
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        table.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
+        table.getColumnModel().getColumn(1).setCellRenderer(centerRenderer);
+        table.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
+
+        
+        table.getColumnModel().getColumn(0).setMaxWidth(50);
+        table.getColumnModel().getColumn(0).setMinWidth(40);
+
         JScrollPane scrollPane = new JScrollPane(table);
         add(scrollPane, BorderLayout.CENTER);
 
-      
+        
         JPanel bottomPanel = new JPanel(new FlowLayout());
         bottomPanel.setBackground(new Color(245, 245, 245));
 
         JLabel searchLabel = new JLabel("Search (Name/Phone):");
         searchLabel.setForeground(Color.DARK_GRAY);
+        searchLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
         searchField = new JTextField(12);
+        searchField.setHorizontalAlignment(JTextField.CENTER);
+
         JButton searchBtn = new JButton("Search");
         searchBtn.setBackground(new Color(100, 149, 237));
         searchBtn.setForeground(Color.WHITE);
@@ -86,17 +113,15 @@ public class PhoneBookUI extends JFrame {
         bottomPanel.add(refreshBtn);
         add(bottomPanel, BorderLayout.SOUTH);
 
-       
+      
         addBtn.addActionListener((ActionEvent e) -> addContact());
         searchBtn.addActionListener((ActionEvent e) -> searchContacts());
         deleteBtn.addActionListener((ActionEvent e) -> deleteSelected());
         updateBtn.addActionListener((ActionEvent e) -> updatePhone());
         refreshBtn.addActionListener((ActionEvent e) -> loadAllContacts());
 
-      
         loadAllContacts();
 
-       
         JOptionPane.showMessageDialog(
                 this,
                 "Welcome to Phone Book!",
@@ -107,7 +132,6 @@ public class PhoneBookUI extends JFrame {
         setVisible(true);
     }
 
-    
     private void addContact() {
         String name = nameField.getText().trim();
         String phone = phoneField.getText().trim();
@@ -117,21 +141,27 @@ public class PhoneBookUI extends JFrame {
             return;
         }
 
-        if (phone.length() != 10 || !phone.matches("\\d+")) {
+        if (!phone.matches("\\d+")) {
             JOptionPane.showMessageDialog(this,
-                    "Phone number must be 10 digits! You entered an invalid phone number!",
+                    "Phone number must contain only digits!",
                     "Invalid Phone Number",
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        dao.addContact(name, phone);
+        String code = (String) codeBox.getSelectedItem();
+        if (code != null && code.contains(" ")) {
+            code = code.split(" ")[0];
+        }
+
+        String fullPhone = code + " " + phone;
+
+        dao.addContact(name, fullPhone);
         loadAllContacts();
         nameField.setText("");
         phoneField.setText("");
     }
 
-    
     private void searchContacts() {
         String keyword = searchField.getText().trim();
         tableModel.setRowCount(0);
@@ -141,7 +171,6 @@ public class PhoneBookUI extends JFrame {
         }
     }
 
-   
     private void deleteSelected() {
         int selectedRow = table.getSelectedRow();
         if (selectedRow >= 0) {
@@ -153,7 +182,6 @@ public class PhoneBookUI extends JFrame {
         }
     }
 
-  
     private void updatePhone() {
         int selectedRow = table.getSelectedRow();
         if (selectedRow >= 0) {
@@ -162,17 +190,23 @@ public class PhoneBookUI extends JFrame {
 
             String newPhone = JOptionPane.showInputDialog(
                     this,
-                    "Enter new phone number:",
+                    "Enter new phone number (without country code):",
                     currentPhone
             );
 
             if (newPhone != null && !newPhone.trim().isEmpty()) {
-                if (newPhone.length() != 10 || !newPhone.matches("\\d+")) {
-                    JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits!");
+                if (!newPhone.matches("\\d+")) {
+                    JOptionPane.showMessageDialog(this, "Phone number must contain only digits!");
                     return;
                 }
 
-                boolean success = dao.updatePhone(id, newPhone);
+                String code = (String) codeBox.getSelectedItem();
+                if (code != null && code.contains(" ")) {
+                    code = code.split(" ")[0];
+                }
+                String fullPhone = code + " " + newPhone;
+
+                boolean success = dao.updatePhone(id, fullPhone);
                 if (success) {
                     JOptionPane.showMessageDialog(this, "Phone updated successfully!");
                     loadAllContacts();
@@ -185,7 +219,6 @@ public class PhoneBookUI extends JFrame {
         }
     }
 
-    
     private void loadAllContacts() {
         tableModel.setRowCount(0);
         List<Contact> all = dao.getAllContacts();
